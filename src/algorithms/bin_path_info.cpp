@@ -30,6 +30,7 @@ namespace odgi {
                                                     const std::map<uint64_t, algorithms::path_info_t> &)> &handle_path,
                            const std::function<void(const uint64_t &, const std::string &)> &handle_sequence,
                            const std::function<void(const string &)> &handle_fasta,
+                           const std::function<void(const uint64_t &, const uint64_t &, const uint64_t &)> &handle_xoffset,
                            uint64_t num_bins,
                            uint64_t bin_width,
                            bool drop_gap_links) {
@@ -59,7 +60,13 @@ namespace odgi {
             // write out pangenome sequence if wished so
             handle_fasta(graph_seq);
             graph_seq.clear(); // clean up
-            std::unordered_map<path_handle_t, uint64_t> path_length;
+
+            // store link columns
+            std::unordered_map<uint64_t, uint64_t> link_columns;
+            //std::ofstream out(json_file);
+            //std::string fa_out_name = args::get(fa_out_file).c_str();
+
+            //std::unordered_map<path_handle_t, uint64_t> path_length;
             uint64_t gap_links_removed = 0;
             uint64_t total_links = 0;
             graph.for_each_path_handle([&](const path_handle_t &path) {
@@ -84,6 +91,8 @@ namespace odgi {
                         if (curr_bin != last_bin && std::abs(curr_bin - last_bin) > 1 || last_bin == 0) {
                             // bin cross!
                             links.push_back(std::make_pair(last_bin, curr_bin));
+                            //link_columns[last_bin]++;
+                            //link_columns[curr_bin]++;
                         }
                         ++bins[curr_bin].mean_cov;
                         if (is_rev) {
@@ -121,6 +130,7 @@ namespace odgi {
                     }
                 });
                 links.push_back(std::make_pair(last_bin, 0));
+                //link_columns[last_bin]++;
                 uint64_t path_length = path_pos;
                 uint64_t end_nucleotide = nucleotide_count;
                 for (auto &entry : bins) {
@@ -148,6 +158,8 @@ namespace odgi {
 
                         if (link.first > link.second) {
                             links[fill_pos++] = link;
+                            link_columns[link.first]++;
+                            link_columns[link.second]++;
                             continue;
                         }
 
@@ -155,6 +167,8 @@ namespace odgi {
                         auto right_it = std::lower_bound(bin_ids.begin(), bin_ids.end(), link.second);
                         if (right_it > left_it) {
                             links[fill_pos++] = link;
+                            link_columns[link.first]++;
+                            link_columns[link.second]++;
                         }
                     }
 
@@ -164,6 +178,21 @@ namespace odgi {
 
                 handle_path(graph.get_path_name(path), links, bins);
             });
+
+            // iterate sorted bins and cumulatively sum up values in link_columns:
+            std::unordered_map<uint64_t, uint64_t> cumsum_links;
+            cumsum_links[1] = 0;
+            handle_xoffset(1, 0, num_bins);
+            for (uint64_t bin = 1; bin < num_bins - 1; ++bin) { // bin IDs start with 1
+                cumsum_links[bin+1] = cumsum_links[bin];
+                if (link_columns.find(bin) != link_columns.end()) {
+    std::cout << "link_columns[" << bin << "] = " << link_columns[bin] << std::endl;
+                    cumsum_links[bin+1] += link_columns[bin];
+                }
+                handle_xoffset(bin+1, cumsum_links[bin+1], num_bins);
+            }
+
+            // entries in link_columns indicate 'component breakpoints'! can be used to split info at these points into chunk files
 
             if (drop_gap_links) {
                 uint64_t path_count = graph.get_path_count();

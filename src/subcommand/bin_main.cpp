@@ -23,7 +23,8 @@ int main_bin(int argc, char** argv) {
     args::ValueFlag<std::string> dg_in_file(parser, "FILE", "load the graph from this file", {'i', "idx"});
     args::ValueFlag<std::string> fa_out_file(parser, "FILE", "store the pangenome sequence in FASTA format in this file", {'f', "fasta"});
     args::ValueFlag<std::string> path_delim(parser, "path-delim", "annotate rows by prefix and suffix of this delimiter", {'D', "path-delim"});
-    args::Flag output_json(parser, "write-json", "write JSON format output including additional path positional information", {'j', "json"});
+    args::Flag output_json(parser, "write-json", "write JSON format output including additional path positional information, used by Schematize visualization", {'j', "json"});
+    args::ValueFlag<std::string> pantograph_file(parser, "FILE", "write JSON format used by PantoGraph in this file; this option activates --no-gap-links", {'p', "pantograph-json"});
     args::Flag aggregate_delim(parser, "aggregate-delim", "aggregate on path prefix delimiter", {'a', "aggregate-delim"});
     args::ValueFlag<uint64_t> num_bins(parser, "N", "number of bins", {'n', "num-bins"});
     args::ValueFlag<uint64_t> bin_width(parser, "bp", "width of each bin in basepairs along the graph vector", {'w', "bin-width"});
@@ -86,20 +87,44 @@ int main_bin(int argc, char** argv) {
         return 1;
     }
 
-    // ODGI JSON VERSION
-    const uint64_t ODGI_JSON_VERSION = 12; // this brings the exact nucleotide positions for each bin for each path referred to as ranges
+    bool no_gap_links = args::get(drop_gap_links);
+    std::ofstream pantograph_out;
+    std::ofstream xoffset_out;
+    if (pantograph_file) {
+        std::string pantograph_file_name = args::get(pantograph_file).c_str();
+        pantograph_out = std::ofstream(pantograph_file_name);
+        std::string xoffset_file_name = pantograph_file_name + ".bin_xoffset.json";
+        xoffset_out = std::ofstream(xoffset_file_name);
+        no_gap_links = true;
+    }
+
+    // JSON VERSIONS
+    const uint64_t ODGI_JSON_VERSION = 12; // v12 brings the exact nucleotide positions for each bin for each path referred to as ranges - used by Schematize
+    const uint64_t PANTOGRAPH_JSON_VERSION = 1;
 
     std::function<void(const uint64_t&, const uint64_t&)> write_header_tsv
     = [&] (const uint64_t pangenome_length, const uint64_t bin_width) {
         // no header necessary for tsv so far
     };
 
+    // Schematize json header
     std::function<void(const uint64_t&,
             const uint64_t&)> write_header_json
     = [&] (const uint64_t pangenome_length, const uint64_t bin_width) {
         std::cout << "{\"odgi_version\": " << ODGI_JSON_VERSION << ",";
         std::cout << "\"bin_width\": " << bin_width << ",";
         std::cout << "\"pangenome_length\": " << pangenome_length << "}" << std::endl;
+    };
+
+    // PantoGraph json header
+    std::function<void(const uint64_t&,
+            const uint64_t&)> write_header_pantograph_json
+    = [&] (const uint64_t pangenome_length, const uint64_t bin_width) {
+        pantograph_out << "{" << std::endl;
+        pantograph_out << "\"version\":" << PANTOGRAPH_JSON_VERSION << std::endl;
+        pantograph_out << "\"bin_width\":" << bin_width << std::endl;
+        pantograph_out << "\"pangenome_length\":" << pangenome_length << "," << std::endl;
+        pantograph_out << "\"graph_paths\":[" << std::endl;
     };
 
     std::function<void(const uint64_t&,
@@ -134,6 +159,7 @@ int main_bin(int argc, char** argv) {
                 }
             };
 
+    // for Schematize:
     std::function<void(const vector<std::pair<uint64_t , uint64_t >>&)> write_ranges_json
         = [&](const vector<std::pair<uint64_t , uint64_t >>& ranges) {
         std::cout << "[";
@@ -148,6 +174,22 @@ int main_bin(int argc, char** argv) {
         std::cout << "]";
     };
 
+    // for PantoGraph:
+    std::function<void(const vector<std::pair<uint64_t , uint64_t >>&)> write_ranges_pantograph_json
+        = [&](const vector<std::pair<uint64_t , uint64_t >>& ranges) {
+        pantograph_out << "\"ranges\":[";
+        for (int i = 0; i < ranges.size(); i++) {
+            std::pair<uint64_t, uint64_t > range = ranges[i];
+            if (i == 0) {
+                pantograph_out << "{\"start\":" << range.first << ",\"end\":" << range.second << "}";
+            } else {
+                pantograph_out << "," << "{\"start\": " << range.first << ",\"end\":" << range.second << "}";
+            }
+        }
+        pantograph_out << "]";
+    };
+
+    // for Schematize:
     std::function<void(const std::string&,
                        const std::vector<std::pair<uint64_t, uint64_t>>&,
                        const std::map<uint64_t, algorithms::path_info_t>&)> write_json
@@ -187,6 +229,48 @@ int main_bin(int argc, char** argv) {
         std::cout << "]}" << std::endl;
     };
 
+    // for PantoGraph:
+    std::function<void(const std::string&,
+                       const std::vector<std::pair<uint64_t, uint64_t>>&,
+                       const std::map<uint64_t, algorithms::path_info_t>&)> write_pantograph_json
+        = [&](const std::string& path_name,
+              const std::vector<std::pair<uint64_t, uint64_t>>& links,
+              const std::map<uint64_t, algorithms::path_info_t>& bins) {
+        std::string name_prefix = get_path_prefix(path_name);
+        std::string name_suffix = get_path_suffix(path_name);
+        pantograph_out << "{\"path_name\":\"" << path_name << "\",";
+        if (!delim.empty()) {
+            pantograph_out << "\"path_name_prefix\":\"" << name_prefix << "\","
+                      << "\"path_name_suffix\":\"" << name_suffix << "\",";
+        }
+        pantograph_out << std::endl << "\"bins\":[" << std::endl;
+        auto entry_it = bins.begin();
+        for (uint64_t i = 0; i < bins.size(); ++i) {
+            auto& bin_id = entry_it->first;
+            auto& info = entry_it->second;
+            pantograph_out << "{\"bin_id\":" << bin_id << ","
+                      << "\"cov\":" << info.mean_cov << ","
+                      << "\"inv\":" << info.mean_inv << ","
+                      << "\"pos\":" << info.mean_pos << ",";
+            write_ranges_pantograph_json(info.ranges);
+			pantograph_out << "}";
+            if (i+1 != bins.size()) {
+                pantograph_out << "," << std::endl;
+            }
+            ++entry_it;
+        }
+        pantograph_out << std::endl << "]," << std::endl;
+        pantograph_out << "\"links\":[" << std::endl;
+        for (uint64_t i = 0; i < links.size(); ++i) {
+            auto& link = links[i];
+            pantograph_out << "{" << "\"from\":" << link.first << "," 
+                      << "\"to\":" << link.second << "}";
+            if (i+1 < links.size()) pantograph_out << ",";
+        }
+        pantograph_out << std::endl << "]" << std::endl;
+        pantograph_out << "}" << std::endl;
+    };
+
     std::function<void(const uint64_t&,
                        const std::string&)> write_seq_noop
         = [&](const uint64_t& bin_id, const std::string& seq) {
@@ -221,11 +305,41 @@ int main_bin(int argc, char** argv) {
         }
     };
 
+    // for Schematize:
+    std::function<void(const uint64_t&,
+                       const uint64_t&,
+                       const uint64_t&)> write_xoffset_noop
+        = [&](const uint64_t& bin_id, const uint64_t& offset, const uint64_t& max_bin) {
+    };
+
+    // for Pantograph:
+    std::function<void(const uint64_t&,
+                       const uint64_t&,
+                       const uint64_t&)> write_xoffset
+        = [&](const uint64_t& bin_id, const uint64_t& offset, const uint64_t& max_bin) {
+        if (bin_id == 0) {
+            xoffset_out << "{" << std::endl << "[";
+        } else {
+            xoffset_out << ",";
+        }
+        xoffset_out << offset;
+        if (bin_id == max_bin) {
+            xoffset_out << "]" << std::endl << "}" << std::endl;
+        }
+    };
+
     if (args::get(output_json)) {
         algorithms::bin_path_info(graph, (args::get(aggregate_delim) ? args::get(path_delim) : ""),
-                                  write_header_json,write_json, write_seq_json, write_fasta,
-                                  args::get(num_bins), args::get(bin_width), args::get(drop_gap_links));
-    } else {
+                                  write_header_json, write_json, write_seq_json, write_fasta, write_xoffset_noop,
+                                  args::get(num_bins), args::get(bin_width), no_gap_links);
+    }
+    if (pantograph_file) {
+        algorithms::bin_path_info(graph, (args::get(aggregate_delim) ? args::get(path_delim) : ""),
+                                  write_header_pantograph_json, write_pantograph_json, write_seq_noop, write_fasta, write_xoffset,
+                                  args::get(num_bins), args::get(bin_width), no_gap_links);
+        pantograph_out << "]}" << std::endl;
+    }
+    if (!args::get(output_json) && !pantograph_file) {
         std::cout << "path.name" << "\t"
                   << "path.prefix" << "\t"
                   << "path.suffix" << "\t"
@@ -236,8 +350,8 @@ int main_bin(int argc, char** argv) {
                   << "first.nucl" << "\t"
                   << "last.nucl" << std::endl;
         algorithms::bin_path_info(graph, (args::get(aggregate_delim) ? args::get(path_delim) : ""),
-                                  write_header_tsv,write_tsv, write_seq_noop, write_fasta,
-                                  args::get(num_bins), args::get(bin_width), args::get(drop_gap_links));
+                                  write_header_tsv,write_tsv, write_seq_noop, write_fasta, write_xoffset_noop,
+                                  args::get(num_bins), args::get(bin_width), no_gap_links);
     }
     return 0;
 }
