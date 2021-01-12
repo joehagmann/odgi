@@ -4,13 +4,15 @@ cmake_minimum_required(VERSION 3.1)
 
 # Project's name
 project(odgi)
-# We build using c++14
+# We build using c++17
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_C_COMPILER "gcc-8")
 
 # Use all standard-compliant optimizations
 set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS} -O3 -mcx16 -g")
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS} -O3 -mcx16 -g")
+#set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O -mcx16 -g -fsanitize=address")
+#set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O -mcx16 -g -fsanitize=address")
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   # assumes clang build
@@ -308,6 +310,16 @@ ExternalProject_Add(atomicbitvector
 ExternalProject_Get_property(atomicbitvector SOURCE_DIR)
 set(atomicbitvector_INCLUDE "${SOURCE_DIR}")
 
+#add_subdirectory(deps/mmmulti/deps/mio)
+ExternalProject_Add(mio
+        SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/mmmulti/deps/mio"
+        UPDATE_COMMAND ""
+        INSTALL_COMMAND ""
+        BUILD_COMMAND ""
+        CONFIGURE_COMMAND "")
+ExternalProject_Get_property(mio SOURCE_DIR)
+set(mio_INCLUDE "${SOURCE_DIR}/include")
+
 # pybind11
 #ExternalProject_Add(pybind11
 #    GIT_REPOSITORY https://github.com/pybind/pybind11.git 
@@ -326,6 +338,7 @@ set(CMAKE_BUILD_TYPE Debug)
 # set up our target executable and specify its dependencies and includes
 add_library(odgi_objs OBJECT
   ${CMAKE_SOURCE_DIR}/src/odgi.cpp
+  ${CMAKE_SOURCE_DIR}/src/reclaimer.cpp
   ${CMAKE_SOURCE_DIR}/src/position.cpp
   ${CMAKE_SOURCE_DIR}/src/gfa_to_handle.cpp
   ${CMAKE_SOURCE_DIR}/src/split.cpp
@@ -337,6 +350,7 @@ add_library(odgi_objs OBJECT
   ${CMAKE_SOURCE_DIR}/src/unittest/handle.cpp
   ${CMAKE_SOURCE_DIR}/src/unittest/fuzz.cpp
   ${CMAKE_SOURCE_DIR}/src/unittest/simplify.cpp
+  ${CMAKE_SOURCE_DIR}/src/unittest/sort.cpp
   ${CMAKE_SOURCE_DIR}/src/unittest/pathindex.cpp
   ${CMAKE_SOURCE_DIR}/src/unittest/edge.cpp
   ${CMAKE_SOURCE_DIR}/src/subcommand/subcommand.cpp
@@ -437,7 +451,8 @@ set(odgi_DEPS
     mmmulti
     ips4o
     xoshiro
-    atomicqueue)
+    atomicqueue
+    mio)
 add_dependencies(odgi_objs ${odgi_DEPS})
 
 set(odgi_INCLUDES
@@ -469,7 +484,8 @@ set(odgi_INCLUDES
   "${random_distributions_INCLUDE}"
   "${dirtyzipf_INCLUDE}"
   "${xoshiro_INCLUDE}"
-  "${atomicbitvector_INCLUDE}")
+  "${atomicbitvector_INCLUDE}"
+  "${mio_INCLUDE}")
 
 set(odgi_LIBS
   "${sdsl-lite_LIB}/libsdsl.a"
@@ -481,13 +497,15 @@ set(odgi_LIBS
   "${libbf_LIB}/libbf.a"
   "-ldl"
   "-latomic")
-#"-ltcmalloc") # for heap profiling
+  #"-lefence") # for malloc error checking
+  #"-ltcmalloc") # for heap profiling
 
 set(odgi_HEADERS
   ${CMAKE_SOURCE_DIR}/include/odgi_git_version.hpp
   ${CMAKE_SOURCE_DIR}/src/hash_map.hpp
   ${CMAKE_SOURCE_DIR}/src/odgi.hpp
   ${CMAKE_SOURCE_DIR}/src/node.hpp
+  ${CMAKE_SOURCE_DIR}/src/bmap.hpp
   ${CMAKE_SOURCE_DIR}/src/subgraph.hpp
   ${CMAKE_SOURCE_DIR}/src/split.hpp
   ${CMAKE_SOURCE_DIR}/src/varint.hpp
@@ -504,6 +522,8 @@ set(odgi_HEADERS
   ${CMAKE_SOURCE_DIR}/src/position.hpp
   ${CMAKE_SOURCE_DIR}/src/dset64.hpp
   ${CMAKE_SOURCE_DIR}/src/dset64-gccAtomic.hpp
+  ${CMAKE_SOURCE_DIR}/src/lockfree_hashtable.hpp
+  ${CMAKE_SOURCE_DIR}/src/reclaimer.hpp
   ${CMAKE_SOURCE_DIR}/src/unittest/driver.hpp
   ${CMAKE_SOURCE_DIR}/src/algorithms/linear_index.hpp
   ${CMAKE_SOURCE_DIR}/src/algorithms/random_order.hpp
