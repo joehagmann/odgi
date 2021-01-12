@@ -138,6 +138,7 @@ int main_bin(int argc, char** argv) {
         }
     };
 
+    // for Schematize:
     std::function<void(const std::string&)> write_fasta
             = [&](const std::string& nuc_seq) {
                 if (fa_out_file) {
@@ -158,6 +159,13 @@ int main_bin(int argc, char** argv) {
                     }
                 }
             };
+
+    // for Pantograph:
+    std::function<void(const std::string&)> write_seq_pantograph
+        = [&](const std::string& nuc_seq) {
+            pantograph_out << "," << std::endl << "\"sequence\": \"" << nuc_seq << "\"" << std::endl;
+    };
+
 
     // for Schematize:
     std::function<void(const vector<std::pair<uint64_t , uint64_t >>&)> write_ranges_json
@@ -361,13 +369,6 @@ int main_bin(int argc, char** argv) {
         }
     };
 
-    // for Schematize:
-    std::function<void(const uint64_t&,
-                       const uint64_t&,
-                       const uint64_t&)> write_xoffset_noop
-        = [&](const uint64_t& bin_id, const uint64_t& offset, const uint64_t& max_bin) {
-    };
-
     // for Pantograph:
     std::function<void(const uint64_t&,
                        const uint64_t&,
@@ -381,7 +382,7 @@ int main_bin(int argc, char** argv) {
         }
         pantograph_out << offset;
         if (bin_id == max_bin) {
-            pantograph_out << "]" << std::endl;
+            pantograph_out << "]";
         }
     };
 
@@ -392,9 +393,9 @@ int main_bin(int argc, char** argv) {
     }
     if (pantograph_file) {
         algorithms::bin_path_info_for_pantograph(graph, (args::get(aggregate_delim) ? args::get(path_delim) : ""),
-                                  write_header_pantograph_json, write_pantograph_json2, write_seq_noop, write_fasta, write_xoffset,
+                                  write_header_pantograph_json, write_pantograph_json2, write_seq_noop, write_seq_pantograph, write_xoffset,
                                   args::get(num_bins), args::get(bin_width));
-        pantograph_out << "]}" << std::endl;
+        pantograph_out << "}" << std::endl;
     }
     if (!args::get(output_json) && !pantograph_file) {
         std::cout << "path.name" << "\t"

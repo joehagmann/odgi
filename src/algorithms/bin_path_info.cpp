@@ -556,24 +556,23 @@ std::cout << "nr passes incr" << std::endl;
 
                 // iterate sorted bins and cumulatively sum up values in link_columns:
                 std::unordered_map<uint64_t, uint64_t> cumsum_links;
-                cumsum_links[1] = 0;
-                handle_xoffset(1, 0, num_bins);
-                for (uint64_t bin = 1; bin < num_bins - 1; ++bin) { // bin IDs start with 1
-                    cumsum_links[bin+1] = cumsum_links[bin];
-                    if (link_columns.find(bin) != link_columns.end()) {
+                cumsum_links[0] = 0;
+                for (uint64_t bin = 1; bin <= num_bins; ++bin) { // bin IDs start with 1
+                    cumsum_links[bin] = cumsum_links[bin-1];
+                    if (link_columns.find(bin-1) != link_columns.end()) {
         std::cout << "link_columns[" << bin << "] = " << link_columns[bin] << std::endl;
-                        cumsum_links[bin+1] += link_columns[bin]/2; // divided by 2 because link is stored in both connecting bins
+                        cumsum_links[bin] += link_columns[bin-1]/2; // divided by 2 because link is stored in both connecting bins, TODO check this is not true anymore?
                     }
-                    handle_xoffset(bin+1, cumsum_links[bin+1], num_bins);
+                    handle_xoffset(bin, cumsum_links[bin], num_bins);
                 }
 
-                // collect bin sequences
+                // collect bin sequences // TODO can be deleted
                 for (uint64_t i = 0; i < num_bins; ++i) {
                     handle_sequence(i + 1, graph_seq.substr(i * bin_width, bin_width));
                     // 
                     std::cout << "bin " << i+1 << ": " << bin_pfreq[i].size() << std::endl;
                 }
-                // write out pangenome sequence if wished so
+                // write out pangenome sequence
                 handle_fasta(graph_seq);
                 graph_seq.clear(); // clean up
 
