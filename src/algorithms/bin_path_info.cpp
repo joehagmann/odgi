@@ -35,23 +35,23 @@ namespace odgi {
                            bool drop_gap_links) {
             // the graph must be compacted for this to work
             std::vector<uint64_t> position_map(graph.get_node_count() + 1);
-            uint64_t len = 0;
+            uint64_t pangenome_len = 0;
             std::string graph_seq;
             graph.for_each_handle([&](const handle_t &h) {
-                position_map[number_bool_packing::unpack_number(h)] = len;
+                position_map[number_bool_packing::unpack_number(h)] = pangenome_len;
                 uint64_t hl = graph.get_length(h);
                 graph_seq.append(graph.get_sequence(h));
-                len += hl;
+                pangenome_len += hl;
             });
             if (!num_bins) {
-                num_bins = len / bin_width + (len % bin_width ? 1 : 0);
+                num_bins = pangenome_len / bin_width + (pangenome_len % bin_width ? 1 : 0);
             } else if (!bin_width) {
-                bin_width = len / num_bins;
-                num_bins = len / bin_width + (len % bin_width ? 1 : 0);
+                bin_width = pangenome_len / num_bins;
+                num_bins = pangenome_len / bin_width + (pangenome_len % bin_width ? 1 : 0);
             }
-            position_map[position_map.size() - 1] = len;
+            position_map[position_map.size() - 1] = pangenome_len;
             // write header
-            handle_header(len, bin_width);
+            handle_header(pangenome_len, bin_width);
             // collect bin sequences
             for (uint64_t i = 0; i < num_bins; ++i) {
                 handle_sequence(i + 1, graph_seq.substr(i * bin_width, bin_width));
@@ -197,12 +197,12 @@ namespace odgi {
 
         void bin_path_info_for_pantograph(const PathHandleGraph &graph,
                             const std::string &prefix_delimiter,
-                            const std::function<void(const uint64_t &, const uint64_t &)> &handle_header,
+                            const std::function<void(const uint64_t &, const uint64_t &, const uint64_t &)> &handle_header,
                             const std::function<void(const std::string &,
                                                      const std::map<uint64_t, algorithms::bin_info_t> &,
-                                                     const bool)> &handle_path,
+                                                     const bool &, const uint64_t &)> &handle_path,
                             const std::function<void(const uint64_t &, const std::string &)> &handle_sequence,
-                            const std::function<void(const string &)> &handle_fasta,
+                            const std::function<void(const string &, const uint64_t &)> &handle_fasta,
                             const std::function<void(const uint64_t &, const uint64_t &, const uint64_t &)> &handle_xoffset,
                             uint64_t num_bins,
                             uint64_t bin_width) {
@@ -214,23 +214,23 @@ namespace odgi {
                 // bin_pfreq: bin presence/path frequency
 
                 std::vector<uint64_t> position_map(graph.get_node_count() + 1);
-                uint64_t len = 0;
+                uint64_t pangenome_len = 0;
                 std::string graph_seq;
                 graph.for_each_handle([&](const handle_t &h) {
-                    position_map[number_bool_packing::unpack_number(h)] = len;
+                    position_map[number_bool_packing::unpack_number(h)] = pangenome_len;
                     uint64_t hl = graph.get_length(h);
                     graph_seq.append(graph.get_sequence(h));
-                    len += hl;
+                    pangenome_len += hl;
                 });
                 if (!num_bins) {
-                    num_bins = len / bin_width + (len % bin_width ? 1 : 0);
+                    num_bins = pangenome_len / bin_width + (pangenome_len % bin_width ? 1 : 0);
                 } else if (!bin_width) {
-                    bin_width = len / num_bins;
-                    num_bins = len / bin_width + (len % bin_width ? 1 : 0);
+                    bin_width = pangenome_len / num_bins;
+                    num_bins = pangenome_len / bin_width + (pangenome_len % bin_width ? 1 : 0);
                 }
-                position_map[position_map.size() - 1] = len;
+                position_map[position_map.size() - 1] = pangenome_len;
                 // write header
-                handle_header(len, bin_width);
+                handle_header(pangenome_len, bin_width, num_bins);
 
                 // deprecated? ///////////////////////////
                     std::vector<std::unordered_set<std::string>> bin_pfreq(num_bins);
@@ -550,7 +550,7 @@ std::cout << "nr passes incr" << std::endl;
                     // gap_links_removed += links.size() - fill_pos;
                     // links.resize(fill_pos);
 
-                    handle_path(graph.get_path_name(path), bins, first_path);
+                    handle_path(graph.get_path_name(path), bins, first_path, pangenome_len);
                     first_path = false;
                 });
 
@@ -573,7 +573,7 @@ std::cout << "nr passes incr" << std::endl;
                     std::cout << "bin " << i+1 << ": " << bin_pfreq[i].size() << std::endl;
                 }
                 // write out pangenome sequence
-                handle_fasta(graph_seq);
+                handle_fasta(graph_seq, num_bins);
                 graph_seq.clear(); // clean up
 
                 // entries in link_columns indicate 'component breakpoints'! can be used to split info at these points into chunk files

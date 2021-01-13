@@ -2,11 +2,6 @@
 #include "args.hxx"
 #include "algorithms/xp.hpp"
 #include <httplib.h>
-//#include <filesystem.h>
-//#include <experimental>
-//namespace fs = std::experimental::filesystem;
-#include <sys/types.h>
-#include <dirent.h>
 
 namespace odgi {
 
@@ -25,7 +20,7 @@ namespace odgi {
 
         args::ArgumentParser parser("start a HTTP server with a given index file to query a pangenome position");
         args::HelpFlag help(parser, "help", "display this help summary", {'h', "help"});
-        args::ValueFlag<std::string> folder(parser, "FOLDER", "load the index from this folder. Must contain .px files.", {'f', "folder"});
+        args::ValueFlag<std::string> dg_in_file(parser, "FILE", "load the index from this file", {'i', "idx"});
         args::ValueFlag<std::string> port(parser, "N", "run the server under this port", {'p', "port"});
         args::ValueFlag<std::string> ip_address(parser, "IP", "run the server under this IP address", {'a', "ip"});
 
@@ -44,8 +39,8 @@ namespace odgi {
             return 1;
         }
 
-        if (!folder) {
-            std::cerr << "[odgi server]: Please enter an existing folder containing path index files via -f=[FOLDER], --folder=[FOLDER]." << std::endl;
+        if (!dg_in_file) {
+            std::cerr << "[odgi server]: Please enter a file to read the index from via -i=[FILE], --idx=[FILE]." << std::endl;
             exit(1);
         }
 
@@ -54,42 +49,11 @@ namespace odgi {
             exit(1);
         }
 
-        //std::unordered_map<std::string, XP*> data_sets;
-        std::unordered_map<std::string, XP> data_sets;
-
-        DIR* dirp = opendir(args::get(folder).c_str());
-        struct dirent * dp;
-        while ((dp = readdir(dirp)) != NULL) {
-            std::string file = dp->d_name;
-            if (file.find(".px") == std::string::npos) continue;
-            
-            std::string full_filename = args::get(folder) + "/" + file;
-            std::cout << "File: " << full_filename << std::endl;
-            
-            XP path_index;
-            std::ifstream in;
-            in.open(full_filename);
-                //std::cerr << "[odgi server]: Cannot load path index from " << file.path() << std::endl;
-                //exit(1);
-            //}
-            // path_index.load(in);
-            // in.close();
-
-            size_t pos = file.find_last_of("."); 
-            std::string dataset_name = file.substr(0, pos);
-            std::cout << "Data set " << dataset_name << " stored." << std::endl;
-            //data_sets[dataset_name] = &path_index;
-            //data_sets[dataset_name] = new XP();
-            data_sets[dataset_name].load(in);
-            in.close();
-
-            std::cout << "Loaded. " << std::endl;
-            std::cout << "Pangenome pos of path 1, pos 16: " << data_sets[dataset_name].get_pangenome_pos("1", 16) << std::endl;
-
-            //data_sets.insert(std::make_pair<std::string, XP>(filename.c_str(), path_index));
-        }
-        closedir(dirp);
-        
+        XP path_index;
+        std::ifstream in;
+        in.open(args::get(dg_in_file));
+        path_index.load(in);
+        in.close();
 
         /*
         const char* pattern = R"(/(\d+)/(\w+))";
@@ -124,24 +88,20 @@ namespace odgi {
             std::cout << "GOT REQUEST : HELLO WORLD!" << std::endl;
         });
 
-        svr.Get(R"(/(\w*)/(\w*.*)/(\d+))", [&](const Request& req, Response& res) {
-            
+        svr.Get(R"(/(\w*.*)/(\d+))", [&](const Request& req, Response& res) {
+            /*
             for (size_t i = 0; i < req.matches.size(); i++) {
-                std::cout << "req.matches " << req.matches[i] << std::endl;
+                std::cout << req.matches[i] << std::endl;
             }
-            
-            auto data_set  = req.matches[1];
-            auto path_name = req.matches[2];
-            auto nuc_pos_1 = req.matches[3];
-            std::cout << "GOT REQUEST : data set: " << data_set << " path name: " << path_name << "; 1-based nucleotide position: " << nuc_pos_1 << std::endl;
+             */
+            auto path_name = req.matches[1];
+            auto nuc_pos_1 = req.matches[2];
+            std::cout << "GOT REQUEST : path name: " << path_name << "; 1-based nucleotide position: " << nuc_pos_1 << std::endl;
             size_t nuc_pos_0 = std::stoi(nuc_pos_1) - 1;
             size_t pan_pos = 0;
-
-            // path_index is stored in data_sets[data_set]
-
-            if (data_sets[data_set].has_path(path_name)) {
-                if (data_sets[data_set].has_position(path_name, nuc_pos_0)) {
-                    pan_pos = data_sets[data_set].get_pangenome_pos(path_name, nuc_pos_0) + 1;
+            if (path_index.has_path(path_name)) {
+                if (path_index.has_position(path_name, nuc_pos_0)) {
+                    pan_pos = path_index.get_pangenome_pos(path_name, nuc_pos_0) + 1;
                 }
             }
             std::cout << "SEND RESPONSE: pangenome position: " << pan_pos << std::endl;
@@ -164,9 +124,7 @@ namespace odgi {
         }
 
         std::cout << "http server listening on http://" << ip << ":" << args::get(port) << std::endl;
-        std::cout << "Pangenome pos of path 1, pos 16: " << data_sets["graph_MMk11_SQk10r10.Ygssorted"].get_pangenome_pos("1", 16) << std::endl;
         svr.listen(ip.c_str(), p);
-        std::cout << "Pangenome pos of path 1, pos 50: " << data_sets["graph_MMk11_SQk10r10.Ygssorted"].get_pangenome_pos("1", 50) << std::endl;
 
         /*
         // we have a 0-based positioning
@@ -191,7 +149,7 @@ namespace odgi {
     }
 
     static Subcommand odgi_server("server",
-                                  "start a HTTP server with a given folder to path index files to query a pangenome position",
+                                  "start a HTTP server with a given index file to query a pangenome position",
                                   PIPELINE, 3, main_server);
 
 }

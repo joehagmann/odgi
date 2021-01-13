@@ -64,12 +64,12 @@ namespace odgi {
 
         void bin_path_info_for_pantograph(const PathHandleGraph &graph,
                            const std::string &prefix_delimiter,
-                           const std::function<void(const uint64_t &, const uint64_t &)> &handle_header,
+                           const std::function<void(const uint64_t &, const uint64_t &, const uint64_t &)> &handle_header,
                            const std::function<void(const std::string &,
                                                     const std::map<uint64_t, algorithms::bin_info_t> &,
-                                                    const bool)> &handle_path,
+                                                    const bool &, const uint64_t &)> &handle_path,
                            const std::function<void(const uint64_t &, const std::string &)> &handle_sequence,
-                           const std::function<void(const std::string&)> &handle_fasta,
+                           const std::function<void(const std::string&, const uint64_t&)> &handle_fasta,
                            const std::function<void(const uint64_t &, const uint64_t &, const uint64_t &)> &handle_xoffset,
                            uint64_t num_bins = 0,
                            uint64_t bin_width = 0);
