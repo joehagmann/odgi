@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.1)
 project(odgi)
 # We build using c++17
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_C_COMPILER "gcc-8")
+#set(CMAKE_C_COMPILER "gcc-8")
 
 # Use all standard-compliant optimizations
 set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS} -O3 -mcx16 -g")
@@ -21,10 +21,10 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   # adapted from https://stackoverflow.com/questions/46414660/macos-cmake-and-openmp
   # find_package(OpenMP) does not work reliably on macOS, so we do its work ourselves
   set (OpenMP_C "${CMAKE_C_COMPILER}")
-  set (OpenMP_C_FLAGS " -Xpreprocessor -fopenmp -I/opt/local/include/libomp -I/usr/local/include -L/opt/local/lib/libomp -L/usr/local/lib")
+  set (OpenMP_C_FLAGS " -pthread -Xpreprocessor -fopenmp -I/opt/local/include/libomp -I/usr/local/include -L/opt/local/lib/libomp -L/usr/local/lib")
   set (OpenMP_C_LIB_NAMES "libomp" "libgomp" "libiomp5")
   set (OpenMP_CXX "${CMAKE_CXX_COMPILER}")
-  set (OpenMP_CXX_FLAGS " -Xpreprocessor -fopenmp -I/opt/local/include/libomp -I/usr/local/include -L/opt/local/lib/libomp -L/usr/local/lib")
+  set (OpenMP_CXX_FLAGS " -pthread -Xpreprocessor -fopenmp -I/opt/local/include/libomp -I/usr/local/include -L/opt/local/lib/libomp -L/usr/local/lib")
   set (OpenMP_CXX_LIB_NAMES "libomp" "libgomp" "libiomp5")
   set (OpenMP_libomp_LIBRARY "omp")
   set (OpenMP_libgomp_LIBRARY "gomp")

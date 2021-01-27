@@ -197,20 +197,20 @@ namespace odgi {
 
         void bin_path_info_for_pantograph(const PathHandleGraph &graph,
                             const std::string &prefix_delimiter,
-                            const std::function<void(const uint64_t &, const uint64_t &, const uint64_t &)> &handle_header,
+                            const std::function<void(const uint64_t &, const uint64_t &)> &handle_header,
                             const std::function<void(const std::string &,
                                                      const std::map<uint64_t, algorithms::bin_info_t> &,
                                                      const bool &, const uint64_t &)> &handle_path,
                             const std::function<void(const uint64_t &, const std::string &)> &handle_sequence,
-                            const std::function<void(const string &, const uint64_t &)> &handle_fasta,
-                            const std::function<void(const uint64_t &, const uint64_t &, const uint64_t &)> &handle_xoffset,
+                            const std::function<void(const string &, const uint64_t &, const uint64_t &)> &handle_fasta,
+                            const std::function<void(const std::map<uint64_t, uint64_t> &, const uint64_t &)> &handle_xoffset,
                             uint64_t num_bins,
                             uint64_t bin_width) {
                 // the graph must be compacted for this to work
 
                 // Containers:
                 // position_map: for each node stores the pangenome position
-                // link_columns
+                // link_columns: number of incoming and outgoing links per bin
                 // bin_pfreq: bin presence/path frequency
 
                 std::vector<uint64_t> position_map(graph.get_node_count() + 1);
@@ -229,27 +229,26 @@ namespace odgi {
                     num_bins = pangenome_len / bin_width + (pangenome_len % bin_width ? 1 : 0);
                 }
                 position_map[position_map.size() - 1] = pangenome_len;
+
                 // write header
-                handle_header(pangenome_len, bin_width, num_bins);
+                handle_header(bin_width, num_bins);
 
-                // deprecated? ///////////////////////////
-                    std::vector<std::unordered_set<std::string>> bin_pfreq(num_bins);
-                    //std::vector<std::vector<std::pair<uint64_t, uint64_t>>> links_per_bin(num_bins);
-                    std::vector<std::unordered_map<std::string, std::vector<int64_t>>> links_per_bin(num_bins);
+                // define data structures
+                std::vector<std::unordered_set<std::string>> bin_pfreq(num_bins);
+                //std::vector<std::vector<std::pair<uint64_t, uint64_t>>> links_per_bin(num_bins);
+                //std::vector<std::unordered_map<std::string, std::vector<int64_t>>> links_per_bin(num_bins);
 
-                    for (uint64_t i = 0; i < num_bins; ++i) {
-                        std::unordered_set<std::string> s;
-                        bin_pfreq.push_back(s);
-                        std::unordered_map<std::string, std::vector<int64_t>> m;
-                        links_per_bin.push_back(m);
-                    }
-                    std::unordered_map<uint64_t, uint64_t> link_columns;
-                /////////////////////////////////////////
+                for (uint64_t i = 0; i < num_bins; ++i) {
+                    std::unordered_set<std::string> s;
+                    bin_pfreq.push_back(s);
+                    // std::unordered_map<std::string, std::vector<int64_t>> m;
+                    // links_per_bin.push_back(m);
+                }
+                std::unordered_map<uint64_t, uint64_t> link_columns;
 
-                // !!!! LATEST:
                 //std::unordered_map<std::string, std::unordered_map< int64_t, std::vector<link_info_t> >> links_per_path_n_bin; // per path!
-                std::unordered_map<int64_t, std::unordered_set<std::string>> uniq_links;
-                std::unordered_map<std::string, int> links_nr_passes;
+                // std::unordered_map<int64_t, std::unordered_set<std::string>> uniq_links;
+                // std::unordered_map<std::string, int> links_nr_passes;
                 
                 //std::unordered_map<path_handle_t, uint64_t> path_length;
                 uint64_t gap_links_removed = 0;
@@ -258,11 +257,8 @@ namespace odgi {
                 graph.for_each_path_handle([&](const path_handle_t &path) {
                     std::string path_name = graph.get_path_name(path);
                     std::cout << "path: " << path_name << std::endl;
-                    //std::vector<std::pair<uint64_t, uint64_t>> links;
-                    //std::vector<link_info_t> links;
-                    //std::vector<int> links_nr_passes;
                     std::map<uint64_t, bin_info_t> bins;
-                    std::map<uint64_t, bool> bins_revisited; // TODO: I think not needed, remove all occs
+                    //std::map<uint64_t, bool> bins_revisited; // TODO: I think not needed, remove all occs
 
                     // walk the path and aggregate
                     uint64_t path_pos = 0;
@@ -282,7 +278,7 @@ namespace odgi {
                             uint64_t curr_pos_in_bin = (p + k) - (curr_bin * bin_width);
 
                             // detect non-consecutive bin ordering for the path
-                            std::pair<uint64_t, uint64_t> p = std::make_pair(last_bin, curr_bin);
+                            std::pair<int64_t, int64_t> p = std::make_pair(last_bin, curr_bin);
                             std::vector<int64_t> v = {last_bin, curr_bin, 1, 1}; // from, to, times, nr_passes
                             // check if previously inserted link is the same as this one.
                             //   If so, increase variable times
@@ -411,7 +407,8 @@ namespace odgi {
                     uint64_t path_length = path_pos;
                     uint64_t fill_pos = 0;
                     std::map<uint64_t, bin_info_t>::iterator it = bins.begin();
-                    for (it; it!=bins.end(); ++it) {
+                    while (it != bins.end()) {
+                    //for (it; it!=bins.end(); ++it) {
                         uint64_t bin_id = it->first;
                         auto &v = it->second;
                         v.mean_inv /= (v.mean_cov ? v.mean_cov : 1);
@@ -419,7 +416,6 @@ namespace odgi {
                         v.mean_pos /= bin_width * path_length * v.mean_cov;
 std::cout << "bin " << bin_id << std::endl;
 
-    // TODO do the following for links_to and links_from...
                         std::vector<link_info_t> links;
                         int which_links = 1;
                         //for (int which_links=0; which_links<=1; ++which_links) {
@@ -427,7 +423,12 @@ std::cout << "bin " << bin_id << std::endl;
                             else                links = bins[bin_id].links_from;
 
 std::cout << "  nr links: " << links.size() << std::endl;
-                            if (links.size() == 0) continue;
+                            if (links.size() == 0) {
+                                ++it;
+                                if (it == bins.end()) break;
+                                continue;
+                            }
+
                             for (std::vector<link_info_t>::iterator it1 = links.begin(); it1 != links.end() - 1; ++it1) {
                                 for (std::vector<link_info_t>::iterator it2 = std::next(it1, 1); it2 != links.end(); ++it2) {
                                     if (it1->from == it2->from && it1->to == it2->to) {
@@ -442,11 +443,11 @@ std::cout << "nr passes incr" << std::endl;
                             // std::map<uint64_t, bin_info_t>::iterator prev_it = std::prev(it, 1);
 
                             // std::map<uint64_t, bin_info_t>::iterator next_it = std::next(it, 1);
-    if (it != bins.begin()) std::cout << "  previous bin: " << std::prev(it, 1)->first << std::endl;
-    if (it != std::prev(bins.end(), 1)) std::cout << "  next bin: " << std::next(it, 1)->first << std::endl;
+if (it != bins.begin()) std::cout << "  previous bin: " << std::prev(it, 1)->first << std::endl;
+if (it != std::prev(bins.end(), 1)) std::cout << "  next bin: " << std::next(it, 1)->first << std::endl;
                             uint64_t fill_pos = 0;
                             for (uint64_t i=0; i<links.size(); ++i) {
-    print_link(links[i]);
+print_link(links[i]);
                                 //should the link be retained? remove all links connecting adjacent bins
                                 bool retain_link = false;
                                 if (it != bins.begin() && it != std::prev(bins.end()) &&
@@ -475,7 +476,7 @@ std::cout << "nr passes incr" << std::endl;
                                 //     //     links[i].to   != std::next(it, 1)->first && 
                                 //     //     links[i].from != std::next(it, 1)->first) ||
                                 //      links[i].nr_passes > 1) {
-    std::cout << "    condition true" << std::endl;
+//std::cout << "    retain link" << std::endl;
                                     //bins[bin_id].links_nr_passes[linkpair] > 1) {
                                         if (which_links == 0) {
                                             bins[bin_id].links_to[fill_pos] = bins[bin_id].links_to[i];
@@ -509,18 +510,21 @@ std::cout << "nr passes incr" << std::endl;
                             total_links += links.size();
                             gap_links_removed += links.size() - fill_pos;
 
-                            std::cout << "AFTER DROP GAP LINKS (fill_pos: " << fill_pos << ")" << std::endl;
-                            if (which_links == 0) {
+std::cout << "AFTER DROP GAP LINKS (fill_pos: " << fill_pos << ")" << std::endl;
+                            if (which_links == 0 && fill_pos < bins[bin_id].links_to.size()) {
                                 bins[bin_id].links_to.resize(fill_pos);
-                                for (uint64_t i=0; i!=bins[bin_id].links_to.size(); ++i) {
-                                    print_link(bins[bin_id].links_to[i]);
-                                }
-                            } else {
+for (uint64_t i=0; i!=bins[bin_id].links_to.size(); ++i) {
+    print_link(bins[bin_id].links_to[i]);
+}
+                            } else if (which_links == 1 && fill_pos < bins[bin_id].links_from.size()) {
                                 bins[bin_id].links_from.resize(fill_pos);
-                                for (uint64_t i=0; i!=bins[bin_id].links_from.size(); ++i) {
-                                    print_link(bins[bin_id].links_from[i]);
-                                }
+for (uint64_t i=0; i!=bins[bin_id].links_from.size(); ++i) {
+    print_link(bins[bin_id].links_from[i]);
+}
                             }
+
+                            ++it;
+                            if (it == bins.end()) break;
                         }
                     //}
 
@@ -550,30 +554,31 @@ std::cout << "nr passes incr" << std::endl;
                     // gap_links_removed += links.size() - fill_pos;
                     // links.resize(fill_pos);
 
-                    handle_path(graph.get_path_name(path), bins, first_path, pangenome_len);
+                    handle_path(graph.get_path_name(path), bins, first_path, num_bins);
                     first_path = false;
                 });
 
                 // iterate sorted bins and cumulatively sum up values in link_columns:
-                std::unordered_map<uint64_t, uint64_t> cumsum_links;
+                std::map<uint64_t, uint64_t> cumsum_links;
                 cumsum_links[0] = 0;
                 for (uint64_t bin = 1; bin <= num_bins; ++bin) { // bin IDs start with 1
                     cumsum_links[bin] = cumsum_links[bin-1];
                     if (link_columns.find(bin-1) != link_columns.end()) {
-        std::cout << "link_columns[" << bin << "] = " << link_columns[bin] << std::endl;
+//std::cout << "link_columns[" << bin << "] = " << link_columns[bin] << std::endl;
                         cumsum_links[bin] += link_columns[bin-1]/2; // divided by 2 because link is stored in both connecting bins, TODO check this is not true anymore?
                     }
-                    handle_xoffset(bin, cumsum_links[bin], num_bins);
+                    //handle_xoffset(bin, cumsum_links[bin], num_bins);
                 }
+                handle_xoffset(cumsum_links, num_bins);
 
                 // collect bin sequences // TODO can be deleted
                 for (uint64_t i = 0; i < num_bins; ++i) {
                     handle_sequence(i + 1, graph_seq.substr(i * bin_width, bin_width));
                     // 
-                    std::cout << "bin " << i+1 << ": " << bin_pfreq[i].size() << std::endl;
+//std::cout << "bin " << i+1 << ": " << bin_pfreq[i].size() << std::endl;
                 }
                 // write out pangenome sequence
-                handle_fasta(graph_seq, num_bins);
+                handle_fasta(graph_seq, bin_width, pangenome_len);
                 graph_seq.clear(); // clean up
 
                 // entries in link_columns indicate 'component breakpoints'! can be used to split info at these points into chunk files

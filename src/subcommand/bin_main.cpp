@@ -24,7 +24,7 @@ int main_bin(int argc, char** argv) {
     args::ValueFlag<std::string> fa_out_file(parser, "FILE", "store the pangenome sequence in FASTA format in this file", {'f', "fasta"});
     args::ValueFlag<std::string> path_delim(parser, "path-delim", "annotate rows by prefix and suffix of this delimiter", {'D', "path-delim"});
     args::Flag output_json(parser, "write-json", "write JSON format output including additional path positional information, used by Schematize visualization", {'j', "json"});
-    args::ValueFlag<std::string> pantograph_file(parser, "FILE", "write JSON format used by PantoGraph in this file; this option activates --no-gap-links", {'p', "pantograph-json"});
+    args::ValueFlag<std::string> pantograph_file(parser, "FILE", "write JSON format used by PantoGraph in this file; this option activates --no-gap-links", {'p', "pantograph-json"}); // TODO: change into folder
     args::Flag aggregate_delim(parser, "aggregate-delim", "aggregate on path prefix delimiter", {'a', "aggregate-delim"});
     args::ValueFlag<uint64_t> num_bins(parser, "N", "number of bins", {'n', "num-bins"});
     args::ValueFlag<uint64_t> bin_width(parser, "bp", "width of each bin in basepairs along the graph vector", {'w', "bin-width"});
@@ -95,7 +95,7 @@ int main_bin(int argc, char** argv) {
     }
 
     bool no_gap_links = args::get(drop_gap_links);
-    std::ofstream pantograph_out;
+    std::ofstream pantograph_out; // deprecated, only used for pantograph1
     std::ofstream bin2file_out;
     std::vector<std::ofstream> file_handles;
     std::string pantograph_file_name;
@@ -129,23 +129,37 @@ int main_bin(int argc, char** argv) {
     };
 
     // PantoGraph json header
-    std::function<void(const uint64_t&, const uint64_t&,
-            const uint64_t&)> write_header_pantograph_json
-    = [&] (const uint64_t pangenome_length, const uint64_t bin_width, const uint64_t num_bins) {
+    std::function<void(const uint64_t&, const uint64_t&)> write_header_pantograph_json
+    = [&] (const uint64_t bin_width, const uint64_t num_bins) {
 
-        for (uint64_t bin=0; bin<num_bins+bins_per_chunk; bin+=bins_per_chunk) {
+        bin2file_out << "{" << std::endl << "\t\"version\":" << PANTOGRAPH_JSON_VERSION << "," << std::endl;
+        bin2file_out << "\t\"pangenome_len\":" << num_bins << "," << std::endl;
+        bin2file_out << "\t\"zoom_level\":" << bin_width << "," << std::endl;
+        bin2file_out << "\t\"files\": [" << std::endl;
+        
+        for (uint64_t bin=0; bin<num_bins; bin+=bins_per_chunk) {
             uint64_t chunk = bin / bins_per_chunk;
             //std::ofstream file = std::ofstream(pantograph_file_name + "." + to_string(chunk));
             std::string filename = pantograph_file_name + "." + to_string(chunk);
             file_handles.emplace_back(std::ofstream{ filename }); // https://stackoverflow.com/questions/29004665/create-a-vector-of-ofstreams
             file_handles.back() << "{" << std::endl;
-            file_handles.back() << "\"version\":"       << PANTOGRAPH_JSON_VERSION << std::endl;
-            file_handles.back() << "\"bin_width\":"     << bin_width << std::endl;
-            file_handles.back() << "\"first_bin\":"     << bin+1 << std::endl;
-            file_handles.back() << "\"last_bin\":"      << bin+bins_per_chunk << std::endl;
-            file_handles.back() << "\"pangenome_len\":" << pangenome_length << "," << std::endl;
+            file_handles.back() << "\"version\":"       << PANTOGRAPH_JSON_VERSION << "," << std::endl;
+            file_handles.back() << "\"bin_width\":"     << bin_width << "," << std::endl;
+            file_handles.back() << "\"first_bin\":"     << bin+1 << "," << std::endl;
+            file_handles.back() << "\"last_bin\":"      << std::min(bin+bins_per_chunk, num_bins) << "," << std::endl;
+            file_handles.back() << "\"pangenome_len\":" << num_bins << "," << std::endl;
             file_handles.back() << "\"graph_paths\":["  << std::endl;
+
+            if (bin > 0) bin2file_out << "," << std::endl;
+            bin2file_out << "\t\t{" << std::endl;
+            bin2file_out << "\t\t\t\"file\": \""      << filename << "\"," << std::endl;
+            bin2file_out << "\t\t\t\"first_bin\": \"" << bin+1 << "\"," << std::endl;
+            bin2file_out << "\t\t\t\"last_bin\": \""  << std::min(bin+bins_per_chunk, num_bins) << "\"" << std::endl 
+                         << "\t\t}";
         }
+
+        bin2file_out << std::endl << "\t]" << std::endl << "}" << std::endl;
+
     };
 
     std::function<void(const uint64_t&,
@@ -182,11 +196,15 @@ int main_bin(int argc, char** argv) {
             };
 
     // for Pantograph:
-    std::function<void(const std::string&, const uint64_t&)> write_seq_pantograph
-        = [&](const std::string& nuc_seq, const uint64_t& num_bins) {
-            for (uint64_t bin=0; bin<num_bins+bins_per_chunk; bin+=bins_per_chunk) {
-                uint64_t chunk = bin / bins_per_chunk;
-                file_handles[chunk] << "," << std::endl << "\"sequence\": \"" << nuc_seq.substr(bin, bins_per_chunk) << "\"" << std::endl;
+    std::function<void(const std::string&, const uint64_t&, const uint64_t&)> write_seq_pantograph
+        = [&](const std::string& nuc_seq, const uint64_t bin_width, const uint64_t& pangenome_len) {
+            for (uint64_t nuc=0; nuc<pangenome_len; nuc+=bins_per_chunk*bin_width) {
+                uint64_t chunk = nuc / bin_width / bins_per_chunk;
+//std::cout << " chunk " << chunk << std::endl;
+                uint64_t nr_nucs = std::min(bin_width * bins_per_chunk, pangenome_len - nuc);
+                file_handles[chunk] << "," << std::endl << "\"sequence\": \"" 
+                                    << nuc_seq.substr(nuc, nr_nucs) << "\"" 
+                                    << std::endl << "}" << std::endl;
             }
     };
 
@@ -219,6 +237,25 @@ int main_bin(int argc, char** argv) {
             }
         }
         pantograph_out << "]";
+    };
+
+    // for PantoGraph2:
+    std::function<std::string(const vector<std::pair<uint64_t , uint64_t >>&)> get_ranges_pantograph_json
+        = [&](const vector<std::pair<uint64_t , uint64_t >>& ranges) {
+        std::string out = "";
+        out += "\"ranges\":[";
+        for (int i = 0; i < ranges.size(); i++) {
+            std::pair<uint64_t, uint64_t > range = ranges[i];
+            if (i == 0) {
+                //out += "{\"start\":" + std::to_string(range.first) + ",\"end\":" + std::to_string(range.second) + "}";
+                out += "{" + std::to_string(range.first) + "," + std::to_string(range.second) + "}";
+            } else {
+                //out += ",{\"start\":" + std::to_string(range.first) + ",\"end\":" + std::to_string(range.second) + "}";
+                out += ",{" + std::to_string(range.first) + "," + std::to_string(range.second) + "}";
+            }
+        }
+        out += "]";
+        return(out);
     };
 
     // for Schematize:
@@ -309,51 +346,57 @@ int main_bin(int argc, char** argv) {
                        const bool&, const uint64_t&)> write_pantograph_json2
         = [&](const std::string& path_name,
               const std::map<uint64_t, algorithms::bin_info_t>& bins,
-              const bool& first_path, const uint64_t& pangenome_len) {
+              const bool& first_path, const uint64_t& total_bins) {
         
         std::string name_prefix = get_path_prefix(path_name);
         std::string name_suffix = get_path_suffix(path_name);
 
-        uint64_t num_bins = bins.size();
-
-        for (uint64_t bin=0; bin<num_bins+bins_per_chunk; bin+=bins_per_chunk) {
+        for (uint64_t bin=0; bin<total_bins; bin+=bins_per_chunk) {
             uint64_t chunk = bin / bins_per_chunk;
-            if (!first_path) file_handles[chunk] << ",";
+std::cout << "  chunk " << chunk << " @bin " << bin << std::endl;
+            if (!first_path) file_handles[chunk] << "," << std::endl;
             file_handles[chunk] << "{\"path_name\":\"" << path_name << "\",";
             if (!delim.empty()) {
                 file_handles[chunk] << "\"path_name_prefix\":\"" << name_prefix << "\","
                                     << "\"path_name_suffix\":\"" << name_suffix << "\",";
             }
+std::cout << "  path " << path_name << std::endl;
             file_handles[chunk] << std::endl << "\"bins\":[" << std::endl;
-            for (uint64_t i = bin; i < bin+bins_per_chunk; ++i) {
+            for (uint64_t i = bin+1; i <= std::min(bin+bins_per_chunk, total_bins); ++i) {
                 //uint64_t bin_id = bins[bin].first;
-                // algorithms::bin_info_t info = bins[i];
-                // file_handles[chunk] << "{\"bin_id\":" << bin << ","
-                //         << "\"cov\":" << info.mean_cov << ","
-                //         << "\"inv\":" << info.mean_inv << ","
-                //         << "\"pos\":" << info.mean_pos << ",";
-                // write_ranges_pantograph_json(info.ranges);
-                // file_handles[chunk] << ",\"links_to\":[";
-                // for (uint64_t i = 0; i < info.links_to.size(); ++i) {
-                //     auto& link = info.links_to[i];
-                //     file_handles[chunk] << "{" << link.from  << "," << link.to
-                //                 << "," << link.times << "}";
-                //     if (i+1 < info.links_to.size()) file_handles[chunk] << ",";
-                // }
-                // file_handles[chunk] << "],\"links_from\":[";
-                // for (uint64_t i = 0; i < info.links_from.size(); ++i) {
-                //     auto& link = info.links_from[i];
-                //     file_handles[chunk] << "{" << link.from  << "," << link.to
-                //                 << "," << link.times << "}";
-                //     if (i+1 < info.links_from.size()) file_handles[chunk] << ",";
-                // }
-                // file_handles[chunk] << "]}";
-                // if (i+1 != bins.size()) {
-                //     file_handles[chunk] << "," << std::endl;
-                // }
-                //++entry_it;
+                if (bins.find(i) != bins.end()) {
+    std::cout << "    bin " << i << std::endl;
+                    if (i != bin+1) file_handles[chunk] << "," << std::endl;
+                    algorithms::bin_info_t info = bins.at(i);
+                    file_handles[chunk] << "{\"bin\":" << i << ","
+                            << "\"cov\":" << info.mean_cov << ","
+                            << "\"inv\":" << info.mean_inv << ","
+                            << "\"pos\":" << info.mean_pos << ",";
+                    file_handles[chunk] << get_ranges_pantograph_json(info.ranges);
+                    file_handles[chunk] << ",\"links_to\":[";
+    std::cout << "    links_to " << info.links_to.size() << std::endl;
+                    for (uint64_t li = 0; li < info.links_to.size(); ++li) {
+                        auto& link = info.links_to[li];
+                        file_handles[chunk] << "{" << link.from  << "," << link.to
+                                            << "," << link.times << "}";
+                        if (li+1 < info.links_to.size()) file_handles[chunk] << ",";
+                    }
+    std::cout << "    links_from " << info.links_from.size() << std::endl;
+                    file_handles[chunk] << "],\"links_from\":[";
+                    for (uint64_t li = 0; li < info.links_from.size(); ++li) {
+                        auto& link = info.links_from[li];
+                        file_handles[chunk] << "{" << link.from  << "," << link.to
+                                            << "," << link.times << "}";
+                        if (li+1 < info.links_from.size()) file_handles[chunk] << ",";
+                    }
+    std::cout << "    links ok " << std::endl;
+                    file_handles[chunk] << "]}";
+                    // if (i != num_bins && i % bins_per_chunk != 0) {
+                    //     file_handles[chunk] << "," << std::endl;
+                    // }
+                }
             }
-            file_handles[chunk] << std::endl << "]}" << std::endl; // bins + path
+            file_handles[chunk] << std::endl << "]}"; // bins + path
         }
     };
 
@@ -408,16 +451,40 @@ int main_bin(int argc, char** argv) {
         }
     };
 
+    // for Pantograph2:
+    std::function<void(const std::map<uint64_t, uint64_t>&,
+                       const uint64_t&)> write_xoffset2
+        = [&](const std::map<uint64_t, uint64_t>& offsets, const uint64_t& num_bins) {
+//std::cout << "write xoffsets\n";
+            for (uint64_t bin=0; bin<num_bins; bin++) {
+                uint64_t chunk = bin / bins_per_chunk;
+//std::cout << "chunk " << chunk << " @bin " << bin << std::endl;
+                if (bin % bins_per_chunk == 0) {
+                    file_handles[chunk] << "]," << std::endl; // end of graph_paths
+                    file_handles[chunk] << "\"xoffsets\":[";
+                } else {
+                    file_handles[chunk] << ",";
+                }
+                file_handles[chunk] << offsets.at(bin+1);
+//std::cout << "  offset " << offsets.at(bin+1) << std::endl;
+                if ( (bin+1) % bins_per_chunk == 0 || (bin+1) == num_bins ) {
+                    file_handles[chunk] << "]";
+                }
+            }
+
+    };
+
+
     if (args::get(output_json)) {
         algorithms::bin_path_info(graph, (args::get(aggregate_delim) ? args::get(path_delim) : ""),
                                   write_header_json, write_json, write_seq_json, write_fasta, 
                                   args::get(num_bins), args::get(bin_width), no_gap_links);
+std::cout << "schematize format completed" << std::endl;
     }
     if (pantograph_file) {
         algorithms::bin_path_info_for_pantograph(graph, (args::get(aggregate_delim) ? args::get(path_delim) : ""),
-                                  write_header_pantograph_json, write_pantograph_json2, write_seq_noop, write_seq_pantograph, write_xoffset,
+                                  write_header_pantograph_json, write_pantograph_json2, write_seq_noop, write_seq_pantograph, write_xoffset2,
                                   args::get(num_bins), args::get(bin_width));
-        pantograph_out << "}" << std::endl;
     }
     if (!args::get(output_json) && !pantograph_file) {
         std::cout << "path.name" << "\t"
