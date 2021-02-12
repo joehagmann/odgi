@@ -2,8 +2,10 @@
 #include "odgi.hpp"
 #include "args.hxx"
 #include "algorithms/bin_path_info.hpp"
+#include "gene_anno/GeneAnnotation.hpp"
 
 #include <regex>
+#include <filesystem>
 
 namespace odgi {
 
@@ -34,9 +36,11 @@ int main_bin(int argc, char** argv) {
     args::HelpFlag help(parser, "help", "display this help summary", {'h', "help"});
     args::ValueFlag<std::string> dg_in_file(parser, "FILE", "load the graph from this file", {'i', "idx"});
     args::ValueFlag<std::string> fa_out_file(parser, "FILE", "store the pangenome sequence in FASTA format in this file", {'f', "fasta"});
-    args::ValueFlag<std::string> path_delim(parser, "path-delim", "annotate rows by prefix and suffix of this delimiter", {'D', "path-delim"});
     args::Flag output_json(parser, "write-json", "write JSON format output including additional path positional information, used by Schematize visualization", {'j', "json"});
     args::ValueFlag<std::string> pantograph_file(parser, "FILE", "write JSON format used by PantoGraph in this file; this option activates --no-gap-links", {'p', "pantograph-json"}); // TODO: change into folder
+    args::ValueFlag<std::string> annotation_file(parser, "FILE", "gene annotation file in gff3 format of the reference genome specified with --ref-genome", {'A', "anno-file"});
+    args::ValueFlag<std::string> ref_genome_ID(parser, "ID", "reference genome ID as specified in the odgi graph, on which the gene annotation is based on", {'r', "ref-genome"});
+    args::ValueFlag<std::string> path_delim(parser, "path-delim", "annotate rows by prefix and suffix of this delimiter", {'D', "path-delim"});
     args::Flag aggregate_delim(parser, "aggregate-delim", "aggregate on path prefix delimiter", {'a', "aggregate-delim"});
     args::ValueFlag<uint64_t> num_bins(parser, "N", "number of bins", {'n', "num-bins"});
     args::ValueFlag<uint64_t> bin_width(parser, "bp", "width of each bin in basepairs along the graph vector", {'w', "bin-width"});
@@ -62,6 +66,21 @@ int main_bin(int argc, char** argv) {
         std::cerr << "[odgi bin] error: Please specify an input file from where to load the graph via -i=[FILE], --idx=[FILE]." << std::endl;
         return 1;
     }
+
+    //////////////////////////////
+    if (annotation_file) {
+        std::string annofile = args::get(annotation_file);
+        if (std::filesystem::exists(annofile)) {
+            GeneAnnotation anno;
+            anno.parse_gff3_annotation(annofile, false);
+            std::cout << anno << std::endl;
+            return 0;
+        } else {
+            std::cerr << "[odgi bin] error: The specified gene annotation file (-A, --anno-file) does not exist." << std::endl;
+            return 1;
+        }
+    }
+    //////////////////////////////
 
     graph_t graph;
     assert(argc > 0);

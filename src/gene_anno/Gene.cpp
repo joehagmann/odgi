@@ -1,4 +1,4 @@
-#include "Gene.h"
+#include "Gene.hpp"
 
 using std::string;
 

@@ -1,6 +1,3 @@
-#ifndef INTERVAL_H
-#define INTERVAL_H
-
 // the general interval class
 class Interval
 {
@@ -28,5 +25,3 @@ public:
         return !(L<R) && !(L>R);
     };
 };
-
-#endif

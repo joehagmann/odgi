@@ -425,7 +425,10 @@ add_library(odgi_objs OBJECT
   ${CMAKE_SOURCE_DIR}/src/algorithms/atomic_image.cpp
   ${CMAKE_SOURCE_DIR}/src/algorithms/remove_isolated.cpp
   ${CMAKE_SOURCE_DIR}/src/algorithms/expand_context.cpp
-  ${CMAKE_SOURCE_DIR}/src/algorithms/groom.cpp src/unittest/edge.cpp)
+  ${CMAKE_SOURCE_DIR}/src/algorithms/groom.cpp src/unittest/edge.cpp
+  ${CMAKE_SOURCE_DIR}/src/gene_anno/GeneAnnotation.cpp
+  ${CMAKE_SOURCE_DIR}/src/gene_anno/Gene.cpp
+  ${CMAKE_SOURCE_DIR}/src/gene_anno/Interval.cpp)
 
 set(odgi_DEPS
     sdsl-lite
@@ -582,7 +585,10 @@ set(odgi_HEADERS
   ${CMAKE_SOURCE_DIR}/src/algorithms/distance_to_head.hpp
   ${CMAKE_SOURCE_DIR}/src/algorithms/is_single_stranded.hpp
   ${CMAKE_SOURCE_DIR}/src/algorithms/shortest_cycle.hpp
-  ${CMAKE_SOURCE_DIR}/src/algorithms/progress.hpp)
+  ${CMAKE_SOURCE_DIR}/src/algorithms/progress.hpp
+  ${CMAKE_SOURCE_DIR}/src/gene_anno/GeneAnnotation.hpp
+  ${CMAKE_SOURCE_DIR}/src/gene_anno/Gene.hpp
+  ${CMAKE_SOURCE_DIR}/src/gene_anno/Interval.hpp)
 
 target_include_directories(odgi_objs PUBLIC ${odgi_INCLUDES})
 set_target_properties(odgi_objs PROPERTIES POSITION_INDEPENDENT_CODE TRUE)

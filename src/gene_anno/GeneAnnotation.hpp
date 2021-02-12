@@ -11,11 +11,7 @@
 #include <utility>
 #include <vector>
 #include <exception>
-#include "Gene.h"
-#include "Interval.h"
-
-#ifndef GENEANNOTATION_H
-#define GENEANNOTATION_H
+#include "Gene.hpp"
 
 class GeneBin {
 using ull_int = unsigned long long;
@@ -159,5 +155,3 @@ private:
     const bool is_exon(const std::vector<std::string> &fields, const std::vector<std::string> &attributes);
     const bool is_transcript(const std::vector<std::string> &fields, const std::vector<std::string> &attributes);
 };
-
-#endif

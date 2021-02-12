@@ -1,4 +1,4 @@
-#include "Interval.h"
+#include "Interval.hpp"
 
 // Constructors for Interval
 Interval::Interval(int s, int e): st(s), en(e), snd(0) {}

@@ -1,4 +1,4 @@
-#include "GeneAnnotation.h"
+#include "GeneAnnotation.hpp"
 
 using std::atoi;
 using std::atomic;
@@ -13,6 +13,7 @@ using std::string;
 using std::stringstream;
 using std::thread;
 using std::unordered_map;
+using std::map;
 using std::vector;
 
 // helper functions
@@ -358,33 +359,35 @@ void GeneAnnotation::parse_gff3_annotation(string gff3_fn, bool fix_chrname)
         const auto &chr_name = chr.first;
 std::cout << "\n\nCHR " << chr_name << std::endl;
 
+        // have one container per path
+        vector<Gene> genes_per_chr;
+
         // merge overlapping exons in each gene
         for (auto &gene : chr.second)
         {
 std::cout << "  " << gene.second.gene_id << std::endl;
             gene.second.sort_exon();
             gene.second.flatten_exon();
-            gene_dict[chr_name].push_back(gene.second);
+            genes_per_chr.push_back(gene.second);
+            //gene_dict[chr_name].push_back(gene.second);
         }
 
-        auto &current_genes = gene_dict[chr_name];
+        //auto &current_genes = gene_dict[chr_name];
         // sort genes based on starting position
-        sort(current_genes.begin(), current_genes.end(),
+        sort(genes_per_chr.begin(), genes_per_chr.end(),
             [] (const Gene &g1, const Gene &g2) { return g1.st < g2.st; }
         );
 
         // store genes in a path-specific container
-        // TODO
+        gene_dict[chr_name] = genes_per_chr;
 
         // create bins of genes
-        bins_dict[chr_name].make_bins(current_genes);
+        //bins_dict[chr_name].make_bins(current_genes);
 
 ////// output all genes:
 std::cout << "  sorted:" << std::endl;
-for (GeneBin &bin : bins_dict[chr_name].gene_bins) {
-    for (auto &g : bin.genes) {
-        std::cout << "  " << g.gene_id << std::endl;
-    }
+for (Gene &g : gene_dict[chr_name]) {
+    std::cout << "  " << g.gene_id << std::endl;
 }
 //////
     }
