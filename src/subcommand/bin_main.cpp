@@ -9,6 +9,18 @@ namespace odgi {
 
 using namespace odgi::subcommand;
 
+std::string currentDateTime() {
+    time_t     now = time(0);
+    struct tm  tstruct;
+    char       buf[80];
+    tstruct = *localtime(&now);
+    // Visit http://en.cppreference.com/w/cpp/chrono/c/strftime
+    // for more information about date/time format
+    strftime(buf, sizeof(buf), "%Y-%m-%d.%X", &tstruct);
+
+    return buf;
+}
+
 int main_bin(int argc, char** argv) {
 
     for (uint64_t i = 1; i < argc-1; ++i) {
@@ -113,6 +125,9 @@ int main_bin(int argc, char** argv) {
     // JSON VERSIONS
     const uint64_t ODGI_JSON_VERSION = 12; // v12 brings the exact nucleotide positions for each bin for each path referred to as ranges - used by Schematize
     const uint64_t PANTOGRAPH_JSON_VERSION = 1;
+
+
+    //////////// FUNCTIONS
 
     std::function<void(const uint64_t&, const uint64_t&)> write_header_tsv
     = [&] (const uint64_t pangenome_length, const uint64_t bin_width) {
@@ -347,25 +362,25 @@ int main_bin(int argc, char** argv) {
         = [&](const std::string& path_name,
               const std::map<uint64_t, algorithms::bin_info_t>& bins,
               const bool& first_path, const uint64_t& total_bins) {
-        
+std::cout << "write path " << path_name << " @ " << currentDateTime() << std::endl;
         std::string name_prefix = get_path_prefix(path_name);
         std::string name_suffix = get_path_suffix(path_name);
 
         for (uint64_t bin=0; bin<total_bins; bin+=bins_per_chunk) {
             uint64_t chunk = bin / bins_per_chunk;
-std::cout << "  chunk " << chunk << " @bin " << bin << std::endl;
+//std::cout << "  chunk " << chunk << " @bin " << bin << std::endl;
             if (!first_path) file_handles[chunk] << "," << std::endl;
             file_handles[chunk] << "{\"path_name\":\"" << path_name << "\",";
             if (!delim.empty()) {
                 file_handles[chunk] << "\"path_name_prefix\":\"" << name_prefix << "\","
                                     << "\"path_name_suffix\":\"" << name_suffix << "\",";
             }
-std::cout << "  path " << path_name << std::endl;
+//std::cout << "  path " << path_name << std::endl;
             file_handles[chunk] << std::endl << "\"bins\":[" << std::endl;
             for (uint64_t i = bin+1; i <= std::min(bin+bins_per_chunk, total_bins); ++i) {
                 //uint64_t bin_id = bins[bin].first;
                 if (bins.find(i) != bins.end()) {
-    std::cout << "    bin " << i << std::endl;
+    //std::cout << "    bin " << i << std::endl;
                     if (i != bin+1) file_handles[chunk] << "," << std::endl;
                     algorithms::bin_info_t info = bins.at(i);
                     file_handles[chunk] << "{\"bin\":" << i << ","
@@ -374,14 +389,14 @@ std::cout << "  path " << path_name << std::endl;
                             << "\"pos\":" << info.mean_pos << ",";
                     file_handles[chunk] << get_ranges_pantograph_json(info.ranges);
                     file_handles[chunk] << ",\"links_to\":[";
-    std::cout << "    links_to " << info.links_to.size() << std::endl;
+    //std::cout << "    links_to " << info.links_to.size() << std::endl;
                     for (uint64_t li = 0; li < info.links_to.size(); ++li) {
                         auto& link = info.links_to[li];
                         file_handles[chunk] << "{" << link.from  << "," << link.to
                                             << "," << link.times << "}";
                         if (li+1 < info.links_to.size()) file_handles[chunk] << ",";
                     }
-    std::cout << "    links_from " << info.links_from.size() << std::endl;
+    //std::cout << "    links_from " << info.links_from.size() << std::endl;
                     file_handles[chunk] << "],\"links_from\":[";
                     for (uint64_t li = 0; li < info.links_from.size(); ++li) {
                         auto& link = info.links_from[li];
@@ -389,7 +404,7 @@ std::cout << "  path " << path_name << std::endl;
                                             << "," << link.times << "}";
                         if (li+1 < info.links_from.size()) file_handles[chunk] << ",";
                     }
-    std::cout << "    links ok " << std::endl;
+    //std::cout << "    links ok " << std::endl;
                     file_handles[chunk] << "]}";
                     // if (i != num_bins && i % bins_per_chunk != 0) {
                     //     file_handles[chunk] << "," << std::endl;
@@ -398,6 +413,7 @@ std::cout << "  path " << path_name << std::endl;
             }
             file_handles[chunk] << std::endl << "]}"; // bins + path
         }
+std::cout << "  finished path " << path_name << " @ " << currentDateTime() << std::endl;
     };
 
     std::function<void(const uint64_t&,
@@ -499,12 +515,9 @@ std::cout << "schematize format completed" << std::endl;
         algorithms::bin_path_info(graph, (args::get(aggregate_delim) ? args::get(path_delim) : ""),
                                   write_header_tsv,write_tsv, write_seq_noop, write_fasta, 
                                   args::get(num_bins), args::get(bin_width), no_gap_links);
+std::cout << "pantograph format completed" << std::endl;
     }
     return 0;
-}
-
-void write_bin2file() {
-    
 }
 
 static Subcommand odgi_bin("bin", "bin path information across the graph",

@@ -104,7 +104,7 @@ namespace odgi {
             auto nuc_pos_1 = req.matches[3];
             std::cout << "GOT REQUEST : data set: " << data_set << " path name: " << path_name << "; 1-based nucleotide position: " << nuc_pos_1 << std::endl;
 
-            std::string output_json = "{\"pan_pos\":";
+            std::string output_json = ""; //{\"pan_pos\":";
             size_t nuc_pos_0 = std::stoi(nuc_pos_1) - 1;
             size_t pan_pos = 0;
 
@@ -114,33 +114,39 @@ namespace odgi {
                 if (data_sets[data_set].has_path(path_name)) {
                     if (data_sets[data_set].has_position(path_name, nuc_pos_0)) {
                         pan_pos = data_sets[data_set].get_pangenome_pos(path_name, nuc_pos_0) + 1;
-                        if (pan_pos != 0) output_json += std::to_string(pan_pos) + ",\"exitcode\":0,\"errmsg\":\"\"}\n";
+                        if (pan_pos != 0) {
+                            output_json += "{\"pan_pos\": " + std::to_string(pan_pos) + "}\n";
+                            res.status = 200;
+                        }
                     }
                     else {
-                        output_json += "0,\"exitcode\":1,\"errmsg\":\"Path " + static_cast<std::string>(path_name) + 
+                        output_json += "{\"message\":\"Path " + static_cast<std::string>(path_name) + 
                                        " does not have position " + static_cast<std::string>(nuc_pos_1) + "\"}\n";
+                        res.status = 400;
                     }
                 }
                 else {
-                    output_json += "0,\"exitcode\":1,\"errmsg\":\"Dataset " + static_cast<std::string>(data_set) + 
+                    output_json += "{\"message\":\"Dataset " + static_cast<std::string>(data_set) + 
                                    " does not have path " + static_cast<std::string>(path_name) + "\"}\n";
+                    res.status = 400;
                 }
             }
             else {
-                output_json += "0,\"exitcode\":1,\"errmsg\":\"There is no path index for dataset " + 
+                output_json += "{\"message\":\"There is no path index for dataset " + 
                                static_cast<std::string>(data_set) + "\"}\n";
+                res.status = 400;
             }
 
             std::cout << "SEND RESPONSE: pangenome position: " << pan_pos << std::endl;
             res.set_header("Access-Control-Allow-Origin", "*");
-            res.set_header("Access-Control-Expose-Headers", "text/plain");
+            res.set_header("Access-Control-Expose-Headers", "application/json");
             res.set_header("Access-Control-Allow-Methods", "GET, POST, DELETE, PUT");
-            res.set_content(output_json, "text/plain");
+            res.set_content(output_json, "application/json");
         });
 
-        svr.Get("/stop", [&](const Request& req, Response& res) {
-            svr.stop();
-        });
+        // svr.Get("/stop", [&](const Request& req, Response& res) {
+        //     svr.stop();
+        // });
 
         const int p = std::stoi(args::get(port));
         std::string ip;

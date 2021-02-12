@@ -414,7 +414,6 @@ namespace odgi {
                         v.mean_inv /= (v.mean_cov ? v.mean_cov : 1);
                         v.mean_cov /= bin_width;
                         v.mean_pos /= bin_width * path_length * v.mean_cov;
-std::cout << "bin " << bin_id << std::endl;
 
                         std::vector<link_info_t> links;
                         int which_links = 1;
@@ -422,7 +421,7 @@ std::cout << "bin " << bin_id << std::endl;
                             if (which_links==0) links = bins[bin_id].links_to;
                             else                links = bins[bin_id].links_from;
 
-std::cout << "  nr links: " << links.size() << std::endl;
+std::cout << "bin " << bin_id << ", nr links: " << links.size() << std::endl;
                             if (links.size() == 0) {
                                 ++it;
                                 if (it == bins.end()) break;
@@ -434,7 +433,7 @@ std::cout << "  nr links: " << links.size() << std::endl;
                                     if (it1->from == it2->from && it1->to == it2->to) {
                                         it1->nr_passes++;
                                         it2->nr_passes++;
-std::cout << "nr passes incr" << std::endl;
+//std::cout << "nr passes incr" << std::endl;
                                     }
                                 }
                             }
@@ -443,11 +442,11 @@ std::cout << "nr passes incr" << std::endl;
                             // std::map<uint64_t, bin_info_t>::iterator prev_it = std::prev(it, 1);
 
                             // std::map<uint64_t, bin_info_t>::iterator next_it = std::next(it, 1);
-if (it != bins.begin()) std::cout << "  previous bin: " << std::prev(it, 1)->first << std::endl;
-if (it != std::prev(bins.end(), 1)) std::cout << "  next bin: " << std::next(it, 1)->first << std::endl;
+//if (it != bins.begin()) std::cout << "  previous bin: " << std::prev(it, 1)->first << std::endl;
+//if (it != std::prev(bins.end(), 1)) std::cout << "  next bin: " << std::next(it, 1)->first << std::endl;
                             uint64_t fill_pos = 0;
                             for (uint64_t i=0; i<links.size(); ++i) {
-print_link(links[i]);
+//print_link(links[i]);
                                 //should the link be retained? remove all links connecting adjacent bins
                                 bool retain_link = false;
                                 if (it != bins.begin() && it != std::prev(bins.end()) &&
@@ -510,17 +509,17 @@ print_link(links[i]);
                             total_links += links.size();
                             gap_links_removed += links.size() - fill_pos;
 
-std::cout << "AFTER DROP GAP LINKS (fill_pos: " << fill_pos << ")" << std::endl;
+std::cout << "  nr links after drop_gap_links: " << fill_pos << std::endl;
                             if (which_links == 0 && fill_pos < bins[bin_id].links_to.size()) {
                                 bins[bin_id].links_to.resize(fill_pos);
-for (uint64_t i=0; i!=bins[bin_id].links_to.size(); ++i) {
-    print_link(bins[bin_id].links_to[i]);
-}
+// for (uint64_t i=0; i!=bins[bin_id].links_to.size(); ++i) {
+//     print_link(bins[bin_id].links_to[i]);
+// }
                             } else if (which_links == 1 && fill_pos < bins[bin_id].links_from.size()) {
                                 bins[bin_id].links_from.resize(fill_pos);
-for (uint64_t i=0; i!=bins[bin_id].links_from.size(); ++i) {
-    print_link(bins[bin_id].links_from[i]);
-}
+// for (uint64_t i=0; i!=bins[bin_id].links_from.size(); ++i) {
+//     print_link(bins[bin_id].links_from[i]);
+// }
                             }
 
                             ++it;
