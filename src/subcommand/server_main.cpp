@@ -78,7 +78,7 @@ namespace odgi {
             in.close();
 
             std::cout << "Loaded. " << std::endl;
-            std::cout << "Pangenome pos of path 1, pos 50: " << data_sets[dataset_name].get_pangenome_pos("1", 50) << std::endl;
+            //std::cout << "Pangenome pos of path 1, pos 50: " << data_sets[dataset_name].get_pangenome_pos("1", 50) << std::endl;
         }
         closedir(dirp);
         
