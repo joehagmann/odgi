@@ -1,5 +1,8 @@
 #include "Interval.hpp"
 
+namespace odgi {
+      namespace gene_anno {
+
 // Constructors for Interval
 Interval::Interval(int s, int e): st(s), en(e), snd(0) {}
 Interval::Interval(int s, int e, int sd): st(s), en(e), snd(sd) {}
@@ -19,3 +22,5 @@ int Interval::overlap(int st1, int en1)
     return 0;
   }
 }
+
+        }}

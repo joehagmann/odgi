@@ -1,7 +1,12 @@
+#pragma once
+
 #include <iostream>
 #include <vector>
 #include <algorithm>
 #include "Interval.hpp"
+
+namespace odgi {
+    namespace gene_anno {
 
 // for position, we dont store chromosome info because we will put genes from the same chromosome
 // together in a hashmap
@@ -22,6 +27,7 @@ public:
 
     void add_exon(Interval it);
 
+    size_t in_which_exon(const Interval &it);
     bool in_exon(const Interval &it);
     bool in_exon(const Interval &it, const bool check_strand);
 
@@ -32,3 +38,5 @@ public:
 
     friend std::ostream& operator<< (std::ostream& out, const Gene& obj);
 };
+
+        }}

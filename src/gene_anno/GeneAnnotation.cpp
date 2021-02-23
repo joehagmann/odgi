@@ -16,6 +16,9 @@ using std::unordered_map;
 using std::map;
 using std::vector;
 
+namespace odgi {
+    namespace gene_anno {
+
 // helper functions
 std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems)
 {
@@ -101,18 +104,57 @@ const string GeneAnnotation::get_parent(const vector<string> &attributes)
         if (attr.substr(0, 6) == "Parent")
         {
             // clip away isoform
-            string parent = attr.substr(0, attr.find('.'));
+            //string parent = attr.substr(0, attr.find('.'));
             // check for ENSEMBL notation
             if (anno_source == "ensembl")
             {
-                //return attr.substr(attr.rfind(':') + 1);
-                return parent.substr(parent.rfind(':') + 1);
+                return attr.substr(attr.rfind(':') + 1);
+                //return parent.substr(parent.rfind(':') + 1);
             }
             else
             {
-                //return attr.substr(attr.find('=') + 1);
-                return parent.substr(parent.find('=') + 1);
+                return attr.substr(attr.find('=') + 1);
+                //return parent.substr(parent.find('=') + 1);
             }
+        }
+    }
+    return "";
+}
+
+const string GeneAnnotation::get_parent_of_CDS(
+    const vector<string> &attributes,
+    const unordered_map<string, string> &transcript_to_gene_dict)
+{
+    for (const auto &attr : attributes)
+    {
+        if (anno_source == "ensembl" && attr.substr(0, 7) == "Parent:")
+        {
+            return attr.substr(attr.rfind(':') + 1);
+        } 
+        else if (anno_source != "ensembl" && attr.substr(0, 7) == "Parent=")
+        {
+            std::string s = attr.substr(attr.find('=') + 1);
+
+            // there can be multiple IDs separated by comma. Check them
+            // until you find a transcript:
+            std::string parent_transcript = s;
+            auto start = 0;
+            auto end = s.find(',');
+            while (end != std::string::npos)
+            {
+                parent_transcript = s.substr(start, end - start);
+                if (transcript_to_gene_dict.find(parent_transcript) != transcript_to_gene_dict.end())
+                {
+                    return parent_transcript;
+                }
+                start = end + 1;
+                end = s.find(',', start);
+            }
+            if (parent_transcript.empty())
+            {
+                std::cerr << "[gene annotation] error: parent '" << attr << "' not found!\n";
+            }
+            return s;
         }
     }
     return "";
@@ -211,10 +253,10 @@ void GeneAnnotation::parse_anno_entry(
     }
 
 // DEBUG USE
-cout << "Parsing: " << line << "\n";
-cout << "Type: " << type << " "
-        << "ID: " << ID << " "
-        << "Parent: " << parent << "\n\n";
+// cout << "Parsing: " << line << "\n";
+// cout << "Type: " << type << " "
+//         << "ID: " << ID << " "
+//         << "Parent: " << parent << "\n\n";
 // DEBUG USE
 
     string target_gene;
@@ -247,11 +289,43 @@ cout << "Type: " << type << " "
             return;
         }
     }
-    else //if (anno_source == "gencode" || anno_source == "refseq")
+    else // anno_source NOT ensembl:
     {
-        if (type == "exon")
+        if (is_transcript(fields, attributes))
         {
-            target_gene = get_gene_id(attributes);
+            if (!ID.empty() && !parent.empty())
+            {
+                transcript_to_gene_dict[ID] = parent;
+            }
+            return;
+        }
+        else if (is_gene(fields, attributes)) {
+            recorded_genes.insert(ID);
+            return;
+        }
+
+        if (anno_source == "gencode" || anno_source == "refseq")
+        {                
+            if (type == "exon")
+            {
+                target_gene = get_gene_id(attributes);
+            }
+        }
+        else // anno_source == plain
+        {
+            if (type == "CDS")
+            {
+                target_gene = get_parent_of_CDS(attributes, transcript_to_gene_dict);
+                if (recorded_genes.find(target_gene) == recorded_genes.end()) {
+                    // it's not a gene, is it a transcript then?
+                    if (transcript_to_gene_dict.find(target_gene) != transcript_to_gene_dict.end())
+                    {
+                        target_gene = transcript_to_gene_dict[target_gene];
+                    }
+                    else std::cerr << "[gene annotation] warning: target gene for CDS not found\n"
+                        << line << std::endl;
+                }
+            }
         }
     }
 
@@ -440,3 +514,4 @@ ostream& operator<< (ostream& out, const GeneAnnotation& obj)
     return out;
 }
 
+        }}

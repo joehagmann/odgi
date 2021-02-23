@@ -1,5 +1,8 @@
 #include "Gene.hpp"
 
+namespace odgi {
+    namespace gene_anno {
+
 using std::string;
 
 Gene::Gene(string id, int st, int en, int snd) : Interval(st, en, snd), gene_id(id) {}
@@ -69,6 +72,16 @@ int Gene::distance_to_end(Interval it)
     return distance;
 }
 
+size_t Gene::in_which_exon(const Interval &it)
+{
+    auto search_result = std::find(exon_vec.begin(), exon_vec.end(), it);
+    if (search_result == exon_vec.end()) return 0;
+    int i=1;
+    for (auto ex : exon_vec) {
+        if (ex == *search_result) return i;
+        ++i;
+    }
+}
 
 bool Gene::in_exon(const Interval &it)
 {
@@ -133,3 +146,5 @@ std::ostream& operator<< (std::ostream& out, const Gene& obj)
     }
     return out;
 }
+
+        }}

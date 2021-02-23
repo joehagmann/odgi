@@ -1,3 +1,8 @@
+#pragma once
+
+namespace odgi {
+    namespace gene_anno {
+
 // the general interval class
 class Interval
 {
@@ -25,3 +30,5 @@ public:
         return !(L<R) && !(L>R);
     };
 };
+
+}}

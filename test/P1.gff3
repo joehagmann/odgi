@@ -1,0 +1,10 @@
+P1	TAIR10	chromosome	1	12	.	.	.	ID=P1;Name=P1
+P1	TAIR10	gene	5	10	.	+	.	ID=AT1G01010;Note=protein_coding_gene;Name=AT1G01010
+P1	TAIR10	mRNA	5	10	.	+	.	ID=AT1G01010.1;Parent=AT1G01010;Name=AT1G01010.1;Index=1
+P1	TAIR10	protein	5	10	.	+	.	ID=AT1G01010.1-Protein;Name=AT1G01010.1;Derives_from=AT1G01010.1
+P1	TAIR10	exon	5	6	.	+	.	Parent=AT1G01010.1
+P1	TAIR10	five_prime_UTR	5	5	.	+	.	Parent=AT1G01010.1
+P1	TAIR10	CDS	6	6	.	+	0	Parent=AT1G01010.1,AT1G01010.1-Protein;
+P1	TAIR10	exon	8	9	.	+	.	Parent=AT1G01010.1
+P1	TAIR10	CDS	8	9	.	+	2	Parent=AT1G01010.1,AT1G01010.1-Protein;
+P1	TAIR10	three_prime_UTR	10	10	.	+	.	Parent=AT1G01010.1
